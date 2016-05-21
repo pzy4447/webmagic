@@ -11,11 +11,10 @@ import us.codecraft.webmagic.Site;
 import us.codecraft.webmagic.Spider;
 import us.codecraft.webmagic.pipeline.FilePipeline;
 import us.codecraft.webmagic.processor.PageProcessor;
-import us.codecraft.webmagic.processor.zhihu.RecommendationsPageProcessor;
 import us.codecraft.webmagic.selector.Html;
 import us.codecraft.webmagic.selector.Selectable;
 
-public class ZhihuProcessor implements PageProcessor {
+public class ZhihuProcessorTest implements PageProcessor {
 	// 部分一：抓取网站的相关配置，包括编码、抓取间隔、重试次数等
 	private Site site = Site.me().setRetryTimes(3).setSleepTime(0);
 	private Map<String, String> articleMap = new HashMap<String, String>();
@@ -23,22 +22,31 @@ public class ZhihuProcessor implements PageProcessor {
 	@Override
 	// process是定制爬虫逻辑的核心接口，在这里编写抽取逻辑
 	public void process(Page page) {
-		String url = page.getUrl().toString();
-		System.out.printf("%s%n", url);// 本page的url
-		// 如果是“编辑推荐"页面，则由该类型页面处理器处理
-		if (url.matches(".+?www.zhihu.com/explore/recommendations"))
-			new RecommendationsPageProcessor().process(page);
-		else if (url.matches(".+?www.zhihu.com/question/.+")) {
+		// processByCss(page);
+		// processByXPath(page);
+		processByReg(page);
+	}
 
-		}
-		processByXPath(page);
+	public void processByCss(Page page) {
+		Html html = page.getHtml();
+		System.out.printf("html is %s%n", html);
+		Selectable s = html.links();
+		// 匹配本页面标题
+		String titleCssExp = "head title";
+		String title = html.css(titleCssExp).toString();
+		System.out.printf("title is %s%n", title);
+		// 抽取相关问题的标题和url
+		String articleCssExp = "a[class=question_link]";
+		List<String> articleInfoList = html.css(articleCssExp).all();
+		System.out.printf("info is : %s%n", articleInfoList.get(0));
+		// 抽取文章信息
+		extractArticle(articleInfoList);
 	}
 
 	public void processByXPath(Page page) {
 		Html html = page.getHtml();
-		System.out.printf("html is %s%n", html);// 页面中的纯html内容，不包含答案区插入的文本图片等
-		Selectable s = html.links();// https://www.zhihu.com/
-
+		System.out.printf("html is %s%n", html);
+		Selectable s = html.links();
 		// 匹配文章标题
 		String titleXPathString = "//head/title/text()";
 		String title = html.xpath(titleXPathString).toString();
@@ -47,6 +55,22 @@ public class ZhihuProcessor implements PageProcessor {
 		String articleInfoXPathExp = "//h2/a[@class='question_link']";// /text()
 		List<String> articleInfoList = html.xpath(articleInfoXPathExp).all();
 		System.out.printf("info is : %s%n", articleInfoList.get(0));
+		// 抽取文章信息
+		extractArticle(articleInfoList);
+	}
+
+	public void processByReg(Page page) {
+		Html html = page.getHtml();
+		System.out.printf("html is %s%n", html);
+		Selectable s = html.links();
+		// 匹配文章标题
+		String title = html.regex("<title>(.+?)</title>").toString();
+		System.out.printf("title is %s%n", title);
+		//
+		String articleInfoRegExp = "<a class=\"question_link\".+?</a>";
+		List<String> articleInfoList = html.regex(articleInfoRegExp).all();
+		System.out.printf("info is : %s%n", articleInfoList.get(0));
+
 		// 抽取文章信息
 		extractArticle(articleInfoList);
 
@@ -61,7 +85,7 @@ public class ZhihuProcessor implements PageProcessor {
 			if (articletitle == null)
 				continue;
 			// url
-			String articleurl = getMatchedString("href=\"(.+?)/answer", info);
+			String articleurl = getMatchedString("href=\"(.+?)\"", info);
 			// System.out.printf("find a title : %s%n", articletitle);
 			// System.out.printf("find a url : %s%n", articleurl);
 			articleMap.put(articletitle, articleurl);

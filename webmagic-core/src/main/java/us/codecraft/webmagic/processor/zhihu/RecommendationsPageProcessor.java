@@ -1,4 +1,4 @@
-package us.codecraft.webmagic.processor.example;
+package us.codecraft.webmagic.processor.zhihu;
 
 import java.util.HashMap;
 import java.util.List;
@@ -11,34 +11,32 @@ import us.codecraft.webmagic.Site;
 import us.codecraft.webmagic.Spider;
 import us.codecraft.webmagic.pipeline.FilePipeline;
 import us.codecraft.webmagic.processor.PageProcessor;
-import us.codecraft.webmagic.processor.zhihu.RecommendationsPageProcessor;
+import us.codecraft.webmagic.processor.example.ZhihuProcessor;
 import us.codecraft.webmagic.selector.Html;
 import us.codecraft.webmagic.selector.Selectable;
 
-public class ZhihuProcessor implements PageProcessor {
+/**
+ * @author lenovo 处理"编辑推荐"页面，提取其中的问题标题和url
+ */
+public class RecommendationsPageProcessor implements PageProcessor {
 	// 部分一：抓取网站的相关配置，包括编码、抓取间隔、重试次数等
 	private Site site = Site.me().setRetryTimes(3).setSleepTime(0);
 	private Map<String, String> articleMap = new HashMap<String, String>();
 
+	private Page currentPage;
+
 	@Override
 	// process是定制爬虫逻辑的核心接口，在这里编写抽取逻辑
 	public void process(Page page) {
-		String url = page.getUrl().toString();
-		System.out.printf("%s%n", url);// 本page的url
-		// 如果是“编辑推荐"页面，则由该类型页面处理器处理
-		if (url.matches(".+?www.zhihu.com/explore/recommendations"))
-			new RecommendationsPageProcessor().process(page);
-		else if (url.matches(".+?www.zhihu.com/question/.+")) {
-
-		}
 		processByXPath(page);
 	}
 
 	public void processByXPath(Page page) {
+		System.out.printf("process recommandation page : %s%n", page.getUrl());
+		currentPage = page;
 		Html html = page.getHtml();
-		System.out.printf("html is %s%n", html);// 页面中的纯html内容，不包含答案区插入的文本图片等
-		Selectable s = html.links();// https://www.zhihu.com/
-
+		System.out.printf("html is %s%n", html);
+		Selectable s = html.links();
 		// 匹配文章标题
 		String titleXPathString = "//head/title/text()";
 		String title = html.xpath(titleXPathString).toString();
@@ -62,8 +60,9 @@ public class ZhihuProcessor implements PageProcessor {
 				continue;
 			// url
 			String articleurl = getMatchedString("href=\"(.+?)/answer", info);
-			// System.out.printf("find a title : %s%n", articletitle);
-			// System.out.printf("find a url : %s%n", articleurl);
+			System.out.printf("find a article : %s%n%s%n", articletitle,
+					articleurl);
+			currentPage.addTargetRequest(articleurl);
 			articleMap.put(articletitle, articleurl);
 		}
 	}
@@ -98,7 +97,5 @@ public class ZhihuProcessor implements PageProcessor {
 		Spider.create(new ZhihuProcessor()).addUrl(url1)
 				.addPipeline(new FilePipeline("C:\\Users\\lenovo\\Desktop\\"))
 				.run();
-
-		// ResultItems = spider.
 	}
 }
